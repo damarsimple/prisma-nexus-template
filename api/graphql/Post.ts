@@ -1,4 +1,5 @@
 import { extendType, nonNull, objectType, stringArg } from "nexus";
+import { nullToUndefined } from "../utils/arguments";
 import { relayToPrismaPagination } from "../utils/pagination";
 
 export const Post = objectType({
@@ -14,12 +15,6 @@ export const Post = objectType({
     t.boolean("published"); // <- Field named `published` of type `Boolean`
   },
 });
-
-export const nullToUndefined = <T>(e: T | null) => {
-  if (e == null) return undefined;
-
-  return e;
-};
 
 export const PostQuery = extendType({
   type: "Query",
