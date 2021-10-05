@@ -1,6 +1,6 @@
 // api/schema.ts
 
-import { makeSchema } from "nexus";
+import { connectionPlugin, makeSchema } from "nexus";
 
 import { join } from "path";
 
@@ -8,7 +8,7 @@ import * as types from "./graphql";
 
 export const schema = makeSchema({
   types,
-
+  plugins: [connectionPlugin({ includeNodesField: true })],
   outputs: {
     typegen: join(__dirname, "../nexus-typegen.ts"),
 

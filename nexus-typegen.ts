@@ -5,8 +5,21 @@
 
 
 import type { Context } from "./api/context"
+import type { core, connectionPluginCore } from "nexus"
 
-
+declare global {
+  interface NexusGenCustomOutputMethods<TypeName extends string> {
+    /**
+     * Adds a Relay-style connection to the type, with numerous options for configuration
+     *
+     * @see https://nexusjs.org/docs/plugins/connection
+     */
+    connectionField<FieldName extends string>(
+      fieldName: FieldName,
+      config: connectionPluginCore.ConnectionFieldConfig<TypeName, FieldName>
+    ): void
+  }
+}
 
 
 declare global {
@@ -29,11 +42,26 @@ export interface NexusGenScalars {
 
 export interface NexusGenObjects {
   Mutation: {};
+  PageInfo: { // root type
+    endCursor?: string | null; // String
+    hasNextPage: boolean; // Boolean!
+    hasPreviousPage: boolean; // Boolean!
+    startCursor?: string | null; // String
+  }
   Post: { // root type
     body?: string | null; // String
-    id?: number | null; // Int
+    id: string; // String!
     published?: boolean | null; // Boolean
     title?: string | null; // String
+  }
+  PostConnection: { // root type
+    edges?: Array<NexusGenRootTypes['PostEdge'] | null> | null; // [PostEdge]
+    nodes?: Array<NexusGenRootTypes['Post'] | null> | null; // [Post]
+    pageInfo: NexusGenRootTypes['PageInfo']; // PageInfo!
+  }
+  PostEdge: { // root type
+    cursor: string; // String!
+    node?: NexusGenRootTypes['Post'] | null; // Post
   }
   Query: {};
 }
@@ -51,34 +79,60 @@ export type NexusGenAllTypes = NexusGenRootTypes & NexusGenScalars
 export interface NexusGenFieldTypes {
   Mutation: { // field return type
     createDraft: NexusGenRootTypes['Post'] | null; // Post
-    publish: NexusGenRootTypes['Post'] | null; // Post
+  }
+  PageInfo: { // field return type
+    endCursor: string | null; // String
+    hasNextPage: boolean; // Boolean!
+    hasPreviousPage: boolean; // Boolean!
+    startCursor: string | null; // String
   }
   Post: { // field return type
     body: string | null; // String
-    id: number | null; // Int
+    id: string; // String!
     published: boolean | null; // Boolean
     title: string | null; // String
   }
+  PostConnection: { // field return type
+    edges: Array<NexusGenRootTypes['PostEdge'] | null> | null; // [PostEdge]
+    nodes: Array<NexusGenRootTypes['Post'] | null> | null; // [Post]
+    pageInfo: NexusGenRootTypes['PageInfo']; // PageInfo!
+  }
+  PostEdge: { // field return type
+    cursor: string; // String!
+    node: NexusGenRootTypes['Post'] | null; // Post
+  }
   Query: { // field return type
-    drafts: Array<NexusGenRootTypes['Post'] | null> | null; // [Post]
-    posts: Array<NexusGenRootTypes['Post'] | null> | null; // [Post]
+    posts: NexusGenRootTypes['PostConnection'] | null; // PostConnection
   }
 }
 
 export interface NexusGenFieldTypeNames {
   Mutation: { // field return type name
     createDraft: 'Post'
-    publish: 'Post'
+  }
+  PageInfo: { // field return type name
+    endCursor: 'String'
+    hasNextPage: 'Boolean'
+    hasPreviousPage: 'Boolean'
+    startCursor: 'String'
   }
   Post: { // field return type name
     body: 'String'
-    id: 'Int'
+    id: 'String'
     published: 'Boolean'
     title: 'String'
   }
+  PostConnection: { // field return type name
+    edges: 'PostEdge'
+    nodes: 'Post'
+    pageInfo: 'PageInfo'
+  }
+  PostEdge: { // field return type name
+    cursor: 'String'
+    node: 'Post'
+  }
   Query: { // field return type name
-    drafts: 'Post'
-    posts: 'Post'
+    posts: 'PostConnection'
   }
 }
 
@@ -88,8 +142,14 @@ export interface NexusGenArgTypes {
       body: string; // String!
       title: string; // String!
     }
-    publish: { // args
-      draftId: number; // Int!
+  }
+  Query: {
+    posts: { // args
+      after?: string | null; // String
+      before?: string | null; // String
+      first?: number | null; // Int
+      last?: number | null; // Int
+      title?: string | null; // String
     }
   }
 }
@@ -157,6 +217,7 @@ declare global {
   interface NexusGenPluginInputTypeConfig<TypeName extends string> {
   }
   interface NexusGenPluginFieldConfig<TypeName extends string, FieldName extends string> {
+    
   }
   interface NexusGenPluginInputFieldConfig<TypeName extends string, FieldName extends string> {
   }

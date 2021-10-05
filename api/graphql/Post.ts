@@ -1,12 +1,12 @@
 // api/graphql/Post.ts                   // 1
 
-import { extendType, intArg, nonNull, objectType, stringArg } from "nexus";
+import { extendType, nonNull, objectType, stringArg } from "nexus";
 
 export const Post = objectType({
   name: "Post", // <- Name of your type
 
   definition(t) {
-    t.int("id"); // <- Field named `id` of type `Int`
+    t.nonNull.string("id"); // <- Field named `id` of type `Int`
 
     t.string("title"); // <- Field named `title` of type `String`
 
@@ -16,19 +16,39 @@ export const Post = objectType({
   },
 });
 
+export const nullToUndefined = <T>(e: T | null) => {
+  if (e == null) return undefined;
+
+  return e;
+};
+
 export const PostQuery = extendType({
   type: "Query",
   definition(t) {
-    t.list.field("drafts", {
-      type: "Post",
-      resolve(_root, _args, ctx) {
-        return ctx.db.post.findMany({ where: { published: false } });
+    t.connectionField("posts", {
+      type: Post,
+      additionalArgs: { title: stringArg() },
+      cursorFromNode(node) {
+        // Can be configured globally in the plugin constructor
+        return node?.id ?? "";
       },
-    });
-    t.list.field("posts", {
-      type: "Post",
-      resolve(_root, _args, ctx) {
-        return ctx.db.post.findMany({ where: { published: true } });
+      async nodes(_, args, ctx, info) {
+        console.log({
+          where: {
+            title: {
+              contains: nullToUndefined(args?.title),
+            },
+          },
+          ...relayToPrismaPagination(args),
+        });
+        return ctx.db.post.findMany({
+          where: {
+            title: {
+              contains: nullToUndefined(args?.title),
+            },
+          },
+          ...relayToPrismaPagination(args),
+        });
       },
     });
   },
@@ -52,22 +72,132 @@ export const PostMutation = extendType({
         return ctx.db.post.create({ data: draft });
       },
     });
-
-    t.field("publish", {
-      type: "Post",
-      args: {
-        draftId: nonNull(intArg()),
-      },
-      resolve(_root, args, ctx) {
-        return ctx.db.post.update({
-          where: {
-            id: args.draftId,
-          },
-          data: {
-            published: true,
-          },
-        });
-      },
-    });
   },
 });
+
+export declare type PaginationArgs = {
+  first?: number | null;
+  after?: string | null;
+  last?: number | null;
+  before?: string | null;
+};
+
+export function relayToPrismaPagination(args: PaginationArgs): {
+  cursor?: { id: string };
+  take?: number;
+  skip?: number;
+} {
+  const { first, last, before, after } = args;
+
+  // If no pagination set, don't touch the args
+  if (!first && !last && !before && !after) {
+    return {};
+  }
+
+  /**
+   * This is currently only possible with js transformation on the result. eg:
+   * after: 1, last: 1
+   * ({
+   *   cursor: { id: $before },
+   *   take: Number.MAX_SAFE_INTEGER,
+   *   skip: 1
+   * }).slice(length - $last, length)
+   */
+  if (after && last) {
+    throw new Error(`after and last can't be set simultaneously`);
+  }
+
+  /**
+   * This is currently only possible with js transformation on the result. eg:
+   * before: 4, first: 1
+   * ({
+   *   cursor: { id: $before },
+   *   take: Number.MIN_SAFE_INTEGER,
+   *   skip: 1
+   * }).slice(0, $first)
+   */
+  if (before && first) {
+    throw new Error(`before and first can't be set simultaneously`);
+  }
+
+  // Edge-case: simulates a single `before` with a hack
+  if (before && !first && !last && !after) {
+    return {
+      cursor: { id: before },
+      skip: 1,
+      take: Number.MIN_SAFE_INTEGER,
+    };
+  }
+
+  const take = resolveTake(first, last);
+  const cursor = resolveCursor(before, after);
+  const skip = resolveSkip(cursor);
+
+  const newArgs = {
+    take,
+    cursor,
+    skip,
+  };
+
+  return newArgs;
+}
+
+function resolveTake(
+  first: number | null | undefined,
+  last: number | null | undefined
+): number | undefined {
+  if (first && last) {
+    throw new Error(`first and last can't be set simultaneously`);
+  }
+
+  if (first) {
+    if (first < 0) {
+      throw new Error(`first can't be negative`);
+    }
+    if (first > 100) {
+      throw new Error(`You can't take more than 100 items at a time`);
+    }
+    return first + 1;
+  }
+
+  if (last) {
+    if (last < 0) {
+      throw new Error(`last can't be negative`);
+    }
+
+    if (last === 0) {
+      return 0;
+    }
+
+    return last * -1;
+  }
+
+  return undefined;
+}
+
+function resolveCursor(
+  before: string | null | undefined,
+  after: string | null | undefined
+) {
+  if (before && after) {
+    throw new Error(`before and after can't be set simultaneously`);
+  }
+
+  if (before) {
+    return { id: before };
+  }
+
+  if (after) {
+    return { id: after };
+  }
+
+  return undefined;
+}
+
+function resolveSkip(cursor: { id: string } | null | undefined) {
+  if (cursor) {
+    return 1;
+  }
+
+  return undefined;
+}
